@@ -293,7 +293,11 @@ export default function Chat({ currentUser }) {
       try {
         const res = await fetch(`${API_URL}/messages?user1=${currentUser.id}&user2=${selectedUser.id}`);
         const data = await res.json();
-        setMessages(data.map(m => ({ ...m, timestamp: new Date(m.timestamp) })));
+        if (Array.isArray(data)) {
+          setMessages(data.map(m => ({ ...m, timestamp: new Date(m.timestamp) })));
+        } else {
+          console.error("API returned non-array for messages:", data);
+        }
       } catch (error) {
         console.error("Error fetching messages:", error);
       }

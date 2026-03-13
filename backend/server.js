@@ -59,7 +59,9 @@ connectDB();
 // API Routes
 app.get('/api/messages', async (req, res) => {
     const { user1, user2 } = req.query;
+    console.log(`[API] GET /api/messages?user1=${user1}&user2=${user2}`);
     try {
+        await connectDB();
         const messages = await Message.find({
             $or: [
                 { sender: user1, receiver: user2 },
@@ -68,7 +70,8 @@ app.get('/api/messages', async (req, res) => {
         }).sort({ timestamp: 1 });
         res.json(messages);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error(`[API ERROR] /api/messages:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
@@ -95,20 +98,25 @@ app.get('/api/unread', async (req, res) => {
 
 app.patch('/api/messages/read', async (req, res) => {
     const { sender, receiver } = req.body;
+    console.log(`[API] PATCH /api/messages/read. Sender: ${sender}, Receiver: ${receiver}`);
     try {
+        await connectDB();
         await Message.updateMany(
             { sender, receiver, read: false },
             { $set: { read: true } }
         );
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error(`[API ERROR] /api/messages/read:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
 app.post('/api/subscribe', async (req, res) => {
     const { userId, subscription } = req.body;
+    console.log(`[API] POST /api/subscribe for user: ${userId}`);
     try {
+        await connectDB();
         await Subscription.findOneAndUpdate(
             { userId },
             { subscription },
@@ -116,8 +124,14 @@ app.post('/api/subscribe', async (req, res) => {
         );
         res.status(201).json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error(`[API ERROR] /api/subscribe:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', time: new Date().toISOString(), db: isConnected });
 });
 
 // Socket.io
