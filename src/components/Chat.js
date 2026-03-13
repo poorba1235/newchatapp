@@ -286,7 +286,7 @@ export default function Chat({ currentUser }) {
     };
   }, [currentUser.id]);
 
-  // Fetch initial messages when user is selected
+  // Fetch messages with interval polling (fallback for Socket.io on Vercel)
   useEffect(() => {
     if (!selectedUser) return;
 
@@ -295,16 +295,32 @@ export default function Chat({ currentUser }) {
         const res = await fetch(`${API_URL}/messages?user1=${currentUser.id}&user2=${selectedUser.id}`);
         const data = await res.json();
         if (Array.isArray(data)) {
-          setMessages(data.map(m => ({ ...m, timestamp: new Date(m.timestamp) })));
-        } else {
-          console.error("API returned non-array for messages:", data);
+          setMessages(prev => {
+            // Only update if there are new messages to avoid extra renders
+            if (JSON.stringify(prev.map(m => m._id)) === JSON.stringify(data.map(m => m._id))) {
+              return prev;
+            }
+
+            // Check if count increased and play sound if not currently visible or just arrived
+            if (data.length > prev.length && prev.length > 0) {
+              const lastNewMsg = data[data.length - 1];
+              if (lastNewMsg.sender !== currentUser.id) {
+                notificationSound.play().catch(e => console.log("Polling msg sound failed:", e));
+              }
+            }
+
+            return data.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+          });
         }
       } catch (error) {
         console.error("Error fetching messages:", error);
       }
     };
 
-    fetchMessages();
+    fetchMessages(); // Immediate fetch
+    const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
   }, [selectedUser, currentUser.id]);
 
   // Track unread messages
