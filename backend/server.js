@@ -39,22 +39,31 @@ app.use(express.json());
 // MongoDB Connection
 const MONGODB_URI = "mongodb+srv://poorna:ipf0DDe6kQnIFA0O@cluster0.70i2pxn.mongodb.net/familychat";
 
+// Enable debug logging
+mongoose.set('debug', true);
+
 let isConnected = false;
 const connectDB = async () => {
-    if (isConnected) return;
+    if (isConnected && mongoose.connection.readyState === 1) return;
+
     try {
-        await mongoose.connect(MONGODB_URI, {
+        console.log('[DB] Connecting to MongoDB...');
+        const db = await mongoose.connect(MONGODB_URI, {
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
+            bufferCommands: false, // Don't buffer if connection is down
         });
-        isConnected = true;
-        console.log('Connected to MongoDB');
+        isConnected = db.connections[0].readyState === 1;
+        console.log('[DB] Connected to MongoDB ✅');
     } catch (err) {
-        console.error('Could not connect to MongoDB', err);
+        console.error('[DB ERROR] Could not connect to MongoDB:', err.message);
+        isConnected = false;
+        throw err; // Re-throw so API routes know we failed
     }
 };
 
-connectDB();
+// Initial connection attempt
+connectDB().catch(err => console.error('[DB] Initial connection failed'));
 
 // API Routes
 app.get('/api/messages', async (req, res) => {
