@@ -336,7 +336,7 @@ export default function Chat({ currentUser }) {
     return () => clearInterval(interval);
   }, [currentUser.id, selectedUser]);
 
-  // Improved send message with Socket.io
+  // Improved send message with API Fallback for Vercel
   const sendMessage = async () => {
     if (!text.trim() || !selectedUser) return;
 
@@ -347,13 +347,34 @@ export default function Chat({ currentUser }) {
       receiver: selectedUser.id
     };
 
+    const originalText = text;
     setText("");
 
-    if (socketRef.current) {
-      socketRef.current.emit('sendMessage', messageData);
+    try {
+      // Use HTTP POST as primary on Vercel for reliability
+      const res = await fetch(`${API_URL}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData)
+      });
 
-      // Smooth scroll to bottom after sending
-      setTimeout(() => scrollToBottom("smooth"), 100);
+      if (res.ok) {
+        const newMessage = await res.json();
+        // Update local state immediately
+        setMessages(prev => [...prev, { ...newMessage, timestamp: new Date(newMessage.timestamp) }]);
+        setTimeout(() => scrollToBottom("smooth"), 100);
+      } else {
+        throw new Error('Failed to send message via API');
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      // Fallback to socket if API fails (though on Vercel, socket is less reliable)
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('sendMessage', messageData);
+      } else {
+        alert("Connection failed. Could not send message.");
+        setText(originalText); // Restore text so user doesn't lose it
+      }
     }
   };
 

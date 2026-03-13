@@ -84,6 +84,50 @@ app.get('/api/messages', async (req, res) => {
     }
 });
 
+// Primary route for sending messages (HTTP fallback for Socket.io)
+app.post('/api/messages', async (req, res) => {
+    const { text, sender, receiver, senderName } = req.body;
+    console.log(`[API] POST /api/messages from ${sender} to ${receiver}`);
+
+    try {
+        await connectDB();
+        const newMessage = new Message({
+            text,
+            sender,
+            receiver,
+            timestamp: new Date(),
+            read: false
+        });
+        await newMessage.save();
+
+        // Try to emit via socket if anyone is connected (best effort)
+        io.to(receiver).emit('message', newMessage);
+        io.to(sender).emit('message', newMessage);
+
+        // Trigger Web Push (Highly reliable via HTTP)
+        try {
+            const subDoc = await Subscription.findOne({ userId: receiver });
+            if (subDoc) {
+                const payload = JSON.stringify({
+                    title: `💬 New message from ${senderName || 'Family Chat'}`,
+                    body: text,
+                    icon: '/logo192.png',
+                    badge: '/favicon.ico',
+                    data: { senderId: sender }
+                });
+                await webpush.sendNotification(subDoc.subscription, payload);
+            }
+        } catch (pushErr) {
+            console.error('Error sending push notification:', pushErr);
+        }
+
+        res.status(201).json(newMessage);
+    } catch (error) {
+        console.error(`[API ERROR] POST /api/messages:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
+});
+
 app.get('/api/unread', async (req, res) => {
     const { userId } = req.query;
     console.log(`[API] GET /api/unread?userId=${userId}`);
