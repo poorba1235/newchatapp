@@ -139,6 +139,7 @@ export default function Chat({ currentUser }) {
     };
 
     setupNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribeUserToPush]);
 
   // Filter users based on access rules
@@ -193,6 +194,7 @@ export default function Chat({ currentUser }) {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleScroll]);
 
   // Show browser notification
