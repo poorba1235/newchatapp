@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:5000";
-const API_URL = "http://localhost:5000/api";
+const SOCKET_URL = "https://newchatapp-back.vercel.app";
+const API_URL = "https://newchatapp-back.vercel.app/api";
 const VAPID_PUBLIC_KEY = "BLPwSa3QwGfCqAVnotnzby2FGLwogKOXa7oQBnHoy9qO69qCjPmhiRDj-b-z22O1hE-diT6MYg7G3zNHMZ4FjFM";
 
 function urlBase64ToUint8Array(base64String) {
@@ -75,27 +75,22 @@ export default function Chat({ currentUser }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Request notification permission and subscribe to Push on mount
-  useEffect(() => {
-    const setupNotifications = async () => {
-      if ("Notification" in window) {
-        let permission = Notification.permission;
-        if (permission !== "granted" && permission !== "denied") {
-          permission = await Notification.requestPermission();
-        }
-
-        if (permission === "granted") {
-          setNotificationPermission(true);
-          // Register/Update Subscription
-          subscribeUserToPush();
-        }
-      }
-    };
-
-    setupNotifications();
+  const sendSubscriptionToBackend = useCallback(async (subscription) => {
+    try {
+      await fetch(`${API_URL}/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          subscription
+        })
+      });
+    } catch (error) {
+      console.error('Error sending subscription to backend:', error);
+    }
   }, [currentUser.id]);
 
-  const subscribeUserToPush = async () => {
+  const subscribeUserToPush = useCallback(async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       console.warn('Push messaging is not supported in this browser');
       setPushStatus('Not Supported');
@@ -124,22 +119,27 @@ export default function Chat({ currentUser }) {
       console.error('Failed to subscribe to push', error);
       setPushStatus('Error ❌');
     }
-  };
+  }, [currentUser.id, sendSubscriptionToBackend]);
 
-  const sendSubscriptionToBackend = async (subscription) => {
-    try {
-      await fetch(`${API_URL}/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          subscription
-        })
-      });
-    } catch (error) {
-      console.error('Error sending subscription to backend:', error);
-    }
-  };
+  // Request notification permission and subscribe to Push on mount
+  useEffect(() => {
+    const setupNotifications = async () => {
+      if ("Notification" in window) {
+        let permission = Notification.permission;
+        if (permission !== "granted" && permission !== "denied") {
+          permission = await Notification.requestPermission();
+        }
+
+        if (permission === "granted") {
+          setNotificationPermission(true);
+          // Register/Update Subscription
+          subscribeUserToPush();
+        }
+      }
+    };
+
+    setupNotifications();
+  }, [subscribeUserToPush]);
 
   // Filter users based on access rules
   const getAvailableUsers = () => {
@@ -158,7 +158,7 @@ export default function Chat({ currentUser }) {
   );
 
   // Check if user is at bottom of messages
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
       const bottomThreshold = 100; // pixels from bottom
@@ -167,7 +167,7 @@ export default function Chat({ currentUser }) {
       setIsAtBottom(isUserAtBottom);
       setShowScrollButton(!isUserAtBottom && messages.length > 0);
     }
-  };
+  }, [messages.length]);
 
   // Scroll to bottom function
   const scrollToBottom = (behavior = "smooth") => {
@@ -193,7 +193,7 @@ export default function Chat({ currentUser }) {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, []);
+  }, [handleScroll]);
 
   // Show browser notification
   const showNotification = useCallback((sender, messageText) => {
@@ -350,22 +350,6 @@ export default function Chat({ currentUser }) {
 
       // Smooth scroll to bottom after sending
       setTimeout(() => scrollToBottom("smooth"), 100);
-    }
-  };
-
-  const testSystemNotification = async () => {
-    if ("Notification" in window) {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        new Notification("🧪 Test Notification", {
-          body: "Push notification system is working!",
-          icon: '/favicon.ico'
-        });
-        notificationSound.play();
-        setToast({ name: "System", text: "Test notification sent!", avatar: "⚙️", id: "system" });
-      } else {
-        alert("Notification permission denied!");
-      }
     }
   };
 
