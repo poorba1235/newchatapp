@@ -76,56 +76,47 @@ export default function Chat({ currentUser }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const sendSubscriptionToBackend = useCallback(async (subscription) => {
-    try {
-      await fetch(`${API_URL}/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          subscription
-        })
-      });
-    } catch (error) {
-      console.error('Error sending subscription to backend:', error);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id]);
+  // Consolidate Push Notification logic into a single effect to avoid callback dependency hell
+  useEffect(() => {
+    const userId = currentUser.id;
 
-  const subscribeUserToPush = useCallback(async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.warn('Push messaging is not supported in this browser');
-      setPushStatus('Not Supported');
-      return;
-    }
+    const sendSubscriptionToBackend = async (subscription) => {
+      try {
+        await fetch(`${API_URL}/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, subscription })
+        });
+      } catch (error) {
+        console.error('Error sending subscription to backend:', error);
+      }
+    };
 
-    try {
-      const registration = await navigator.serviceWorker.ready;
-
-      // Check if already subscribed
-      const existingSub = await registration.pushManager.getSubscription();
-      if (existingSub) {
-        await sendSubscriptionToBackend(existingSub);
-        setPushStatus('Subscribed ✅');
+    const subscribeUserToPush = async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setPushStatus('Not Supported');
         return;
       }
 
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        let subscription = await registration.pushManager.getSubscription();
 
-      await sendSubscriptionToBackend(subscription);
-      setPushStatus('Subscribed ✅');
-    } catch (error) {
-      console.error('Failed to subscribe to push', error);
-      setPushStatus('Error ❌');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sendSubscriptionToBackend]);
+        if (!subscription) {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+          });
+        }
 
-  // Request notification permission and subscribe to Push on mount
-  useEffect(() => {
+        await sendSubscriptionToBackend(subscription);
+        setPushStatus('Subscribed ✅');
+      } catch (error) {
+        console.error('Failed to subscribe to push', error);
+        setPushStatus('Error ❌');
+      }
+    };
+
     const setupNotifications = async () => {
       if ("Notification" in window) {
         let permission = Notification.permission;
@@ -135,7 +126,6 @@ export default function Chat({ currentUser }) {
 
         if (permission === "granted") {
           setNotificationPermission(true);
-          // Register/Update Subscription
           subscribeUserToPush();
         }
       }
@@ -143,7 +133,7 @@ export default function Chat({ currentUser }) {
 
     setupNotifications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subscribeUserToPush]);
+  }, [currentUser.id]);
 
   // Filter users based on access rules
   const getAvailableUsers = () => {
