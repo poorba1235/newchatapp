@@ -240,7 +240,11 @@ export default function Chat({ currentUser }) {
 
   // Listen for messages via Socket.io
   useEffect(() => {
-    socketRef.current = io(SOCKET_URL);
+    socketRef.current = io(SOCKET_URL, {
+      transports: ['websocket'], // Force websocket to avoid 400 Bad Request on Vercel polling
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
 
     socketRef.current.on('connect', () => {
       console.log('Connected to socket');

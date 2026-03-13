@@ -14,9 +14,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: ["https://newchatapp-front.vercel.app", "http://localhost:3000"],
         methods: ["GET", "POST"]
-    }
+    },
+    transports: ['websocket'] // Vercel works better with websocket-only to avoid polling stickiness issues
 });
 
 // Web Push Configuration
@@ -37,9 +38,23 @@ app.use(express.json());
 
 // MongoDB Connection
 const MONGODB_URI = "mongodb+srv://poorna:ipf0DDe6kQnIFA0O@cluster0.70i2pxn.mongodb.net/familychat";
-mongoose.connect(MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('Could not connect to MongoDB', err));
+
+let isConnected = false;
+const connectDB = async () => {
+    if (isConnected) return;
+    try {
+        await mongoose.connect(MONGODB_URI, {
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+        });
+        isConnected = true;
+        console.log('Connected to MongoDB');
+    } catch (err) {
+        console.error('Could not connect to MongoDB', err);
+    }
+};
+
+connectDB();
 
 // API Routes
 app.get('/api/messages', async (req, res) => {
@@ -59,7 +74,10 @@ app.get('/api/messages', async (req, res) => {
 
 app.get('/api/unread', async (req, res) => {
     const { userId } = req.query;
+    console.log(`[API] GET /api/unread?userId=${userId}`);
+
     try {
+        await connectDB(); // Ensure DB is connected in serverless
         const counts = await Message.aggregate([
             { $match: { receiver: userId, read: false } },
             { $group: { _id: "$sender", count: { $sum: 1 } } }
@@ -70,7 +88,8 @@ app.get('/api/unread', async (req, res) => {
         });
         res.json(response);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error(`[API ERROR] /api/unread:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
@@ -157,4 +176,13 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+});
+
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
 });
