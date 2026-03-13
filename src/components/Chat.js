@@ -32,7 +32,8 @@ const USERS = [
 const PRIYANKA_ID = "u4";
 
 // Notification sound
-const notificationSound = new Audio('./notification.mp3');
+const notificationSound = new Audio('/notification.mp3');
+notificationSound.volume = 1.0;
 
 export default function Chat({ currentUser }) {
   const [selectedUser, setSelectedUser] = useState(null);
@@ -307,15 +308,26 @@ export default function Chat({ currentUser }) {
   }, [selectedUser, currentUser.id]);
 
   // Track unread messages
+  const lastTotalUnread = useRef(0);
+
   useEffect(() => {
     const fetchUnread = async () => {
       try {
         const res = await fetch(`${API_URL}/unread?userId=${currentUser.id}`);
         const data = await res.json();
-        setUnreadCount(data);
 
-        const totalUnread = Object.values(data).reduce((a, b) => a + b, 0);
-        document.title = totalUnread > 0 ? `(${totalUnread}) Family Chat` : "Family Chat";
+        if (typeof data === 'object' && data !== null && !data.error) {
+          setUnreadCount(data);
+          const totalUnread = Object.values(data).reduce((a, b) => a + b, 0);
+
+          // Play sound if unread count increased (and we're not currently sending)
+          if (totalUnread > lastTotalUnread.current) {
+            notificationSound.play().catch(e => console.log("Polling Audio failed:", e));
+          }
+          lastTotalUnread.current = totalUnread;
+
+          document.title = totalUnread > 0 ? `(${totalUnread}) Family Chat` : "Family Chat";
+        }
       } catch (error) {
         console.error("Error fetching unread counts:", error);
       }
@@ -323,7 +335,7 @@ export default function Chat({ currentUser }) {
 
     fetchUnread();
 
-    // Also update when a new message arrives
+    // Also update when a new message arrives via socket
     if (socketRef.current) {
       socketRef.current.on('message', (msg) => {
         if (msg.receiver === currentUser.id && (!selectedUser || msg.sender !== selectedUser.id)) {
