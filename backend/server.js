@@ -31,7 +31,8 @@ webpush.setVapidDetails(
     vapidKeys.privateKey
 );
 
-app.use(cors({ origin: "http://localhost:3000" }));
+app.use(cors({ origin: "https://newchatapp-front.vercel.app" }));
+
 app.use(express.json());
 
 // MongoDB Connection
