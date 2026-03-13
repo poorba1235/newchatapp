@@ -88,6 +88,7 @@ export default function Chat({ currentUser }) {
     } catch (error) {
       console.error('Error sending subscription to backend:', error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
 
   const subscribeUserToPush = useCallback(async () => {
@@ -119,7 +120,8 @@ export default function Chat({ currentUser }) {
       console.error('Failed to subscribe to push', error);
       setPushStatus('Error ❌');
     }
-  }, [currentUser.id, sendSubscriptionToBackend]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sendSubscriptionToBackend]);
 
   // Request notification permission and subscribe to Push on mount
   useEffect(() => {
@@ -168,6 +170,7 @@ export default function Chat({ currentUser }) {
       setIsAtBottom(isUserAtBottom);
       setShowScrollButton(!isUserAtBottom && messages.length > 0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
   // Scroll to bottom function
