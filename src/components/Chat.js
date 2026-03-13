@@ -292,11 +292,11 @@ export default function Chat({ currentUser }) {
 
     const fetchMessages = async () => {
       try {
-        const res = await fetch(`${API_URL}/messages?user1=${currentUser.id}&user2=${selectedUser.id}`);
+        const res = await fetch(`${API_URL}/messages?user1=${currentUser.id}&user2=${selectedUser.id}&limit=5`);
         const data = await res.json();
         if (Array.isArray(data)) {
           setMessages(prev => {
-            // Only update if there are new messages to avoid extra renders
+            // Only update if there are new messages
             if (JSON.stringify(prev.map(m => m._id)) === JSON.stringify(data.map(m => m._id))) {
               return prev;
             }

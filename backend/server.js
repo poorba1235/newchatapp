@@ -68,16 +68,21 @@ connectDB().catch(err => console.error('[DB] Initial connection failed'));
 // API Routes
 app.get('/api/messages', async (req, res) => {
     const { user1, user2 } = req.query;
-    console.log(`[API] GET /api/messages?user1=${user1}&user2=${user2}`);
+    console.log(`[API] GET /api/messages (limit 5) for ${user1} and ${user2}`);
     try {
         await connectDB();
+        // Fetch last 5 messages
         const messages = await Message.find({
             $or: [
                 { sender: user1, receiver: user2 },
                 { sender: user2, receiver: user1 }
             ]
-        }).sort({ timestamp: 1 });
-        res.json(messages);
+        })
+            .sort({ timestamp: -1 }) // Sort by newest first to get the last 5
+            .limit(5);
+
+        // Reverse them back to chronological order (oldest first)
+        res.json(messages.reverse());
     } catch (error) {
         console.error(`[API ERROR] /api/messages:`, error);
         res.status(500).json({ error: 'Internal Server Error', details: error.message });
